@@ -1,0 +1,1510 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>원고지 쓰기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;700&family=Nanum+Myeongjo:wght@400;700&family=Nanum+Gothic:wght@400;700&family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+
+:root {
+  --grid-color: #c0392b;
+  --cell-size: 35px;
+  --font-size: 22px;
+  --font-family: 'Noto Serif KR', serif;
+  --toolbar-height: 56px;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  background: #e8e4df;
+  font-family: var(--font-family);
+  overflow: hidden;
+  touch-action: manipulation; 
+}
+
+/* ===== 메뉴 =====
+   넓은 화면: 오른쪽에 늘 보이는 메뉴(.side). 좁은 화면(body.compact): 위에 얇은 줄(.topbar)만 두고, ☰를 누르면 메뉴가 오른쪽에서 나온다.
+   두 곳 모두 .toolbar 를 달아, 메뉴를 누를 때 원고지의 커서가 옮겨 가지 않게 한다(스크립트가 .toolbar 안의 클릭을 건너뛴다). */
+:root { --side-w: 268px; --bar: #fbf8f2; --bar-line: #ddd5c6; --btn: #ffffff; --btn-hover: #f1ece1; --text: #2b2926; --text-soft: #6b655c; --accent: #2f4b7c; --accent-hover: #3b5c96; --paper-bg: #e9e5dc; }
+/* 넓은 화면에는 위 줄이 없다. */
+body:not(.compact) { --toolbar-height: 0px; }
+
+.toolbar { font-family: 'Noto Sans KR', sans-serif; color: var(--text); }
+.toolbar-title { font-family: 'Noto Serif KR', serif; font-size: 18px; font-weight: 700; letter-spacing: 0.02em; white-space: nowrap; display: inline-flex; align-items: center; gap: 8px; }
+.toolbar-title::before { content: ''; width: 12px; height: 12px; border: 2px solid var(--accent); border-radius: 2px; flex: none; }
+
+/* 좁은 화면의 위 줄: 제목 · 되돌리기 · 메뉴 단추 */
+.topbar { display: none; position: fixed; top: 0; left: 0; right: 0; height: 56px; z-index: 1000; align-items: center; gap: 6px; padding: 0 12px; background: var(--bar); box-shadow: 0 1px 0 var(--bar-line), 0 6px 18px rgba(60,50,30,0.10); }
+body.compact .topbar { display: flex; }
+.topbar .toolbar-title { flex: 1; font-size: 16px; }
+.menu-toggle { width: 42px; height: 40px; font-size: 18px; line-height: 1; border-radius: 8px; border: 1px solid var(--bar-line); background: var(--btn); color: var(--text); cursor: pointer; }
+
+/* 오른쪽 메뉴 */
+.side { position: fixed; top: 0; right: 0; bottom: 0; width: var(--side-w); z-index: 1001; display: flex; flex-direction: column; gap: 20px; padding: 22px 16px 16px; overflow-y: auto; background: var(--bar); border-left: 1px solid var(--bar-line); box-shadow: -6px 0 18px rgba(60,50,30,0.07); }
+body.compact .side { top: 56px; width: min(300px, 88vw); transform: translateX(105%); transition: transform 0.2s ease-out; }
+body.compact .side.open { transform: none; box-shadow: -12px 0 30px rgba(40,30,20,0.25); }
+body.compact .side .side-head { display: none; }
+.side { transition: transform 0.2s ease-out; }
+.side-head { display: flex; align-items: center; gap: 2px; }
+.side-head .toolbar-title { flex: 1; }
+.side .side-head .icon-btn { width: 34px; min-height: 34px; height: 34px; padding: 0; border: none; background: transparent; }
+.side .side-head .icon-btn:hover:not(:disabled) { background: var(--btn-hover); }
+.side .side-head .icon-btn svg { margin-right: 0; }
+/* 넓은 화면에서 메뉴를 접으면 오른쪽 밖으로 밀어 두고, 다시 펴는 단추를 오른쪽 위에 둔다. */
+body.side-closed:not(.compact) .side { transform: translateX(105%); }
+.side-open { display: none; position: fixed; top: 14px; right: 14px; z-index: 1000; min-height: 40px; padding: 8px 12px; border: 1px solid var(--bar-line); border-radius: 8px; background: var(--bar); color: var(--text); font-family: 'Noto Sans KR', sans-serif; font-size: 14px; line-height: 1; white-space: nowrap; cursor: pointer; align-items: center; gap: 6px; box-shadow: 0 6px 18px rgba(60,50,30,0.12); }
+.side-open svg { width: 16px; height: 16px; flex: none; stroke: currentColor; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.side-open:hover { background: var(--btn-hover); }
+body.side-closed:not(.compact) .side-open { display: inline-flex; }
+/* 메뉴가 화면보다 길면 묶음을 눌러 줄이지 않고 메뉴를 굴린다. */
+.side > * { flex: none; }
+.side-section { display: grid; gap: 8px; }
+.side-section h2 { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; color: var(--text-soft); }
+.side-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.side-end { margin-top: auto; }
+.side button, .side select, .side input[type="text"] { width: 100%; min-height: 40px; padding: 8px 11px; border: 1px solid var(--bar-line); border-radius: 8px; background: var(--btn); color: var(--text); font-family: inherit; font-size: 14px; line-height: 1; white-space: nowrap; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: background 0.15s, border-color 0.15s; }
+.side input[type="text"] { cursor: text; justify-content: flex-start; }
+.side input[type="text"]::placeholder { color: #a39c90; }
+.side button:hover, .side select:hover, .menu-toggle:hover { background: var(--btn-hover); }
+.side button:disabled { opacity: 0.35; cursor: not-allowed; }
+.toolbar button:focus-visible, .toolbar select:focus-visible, .toolbar input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* 단추 앞의 선 아이콘 */
+.toolbar button .ico, .toolbar button svg { width: 16px; height: 16px; flex: none; stroke: currentColor; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.side button .ico, .side button svg { margin-right: 7px; }
+.btn-primary { background: var(--accent) !important; border-color: var(--accent) !important; color: #fff !important; font-weight: 700; }
+.btn-primary:hover { background: var(--accent-hover) !important; border-color: var(--accent-hover) !important; }
+.btn-quiet { background: transparent !important; color: var(--text-soft) !important; }
+.btn-quiet:hover { background: var(--btn-hover) !important; }
+/* 위 줄의 되돌리기 단추(좁은 화면) */
+.icon-btn { width: 40px; height: 40px; border: none; border-radius: 8px; background: transparent; color: var(--text); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.icon-btn:hover:not(:disabled) { background: var(--btn-hover); }
+.icon-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.mobile-undo-redo { display: flex; align-items: center; gap: 2px; }
+
+/* 원고지 줄 색 */
+.color-set { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 8px; border: 1px solid var(--bar-line); border-radius: 8px; background: var(--btn); }
+.side .color-btn { width: 28px; min-height: 28px; height: 28px; padding: 0; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px var(--bar-line); flex: 0 0 28px; transition: transform 0.15s; }
+.side .color-btn:hover { transform: scale(1.08); }
+.side .color-btn.active { box-shadow: 0 0 0 2px var(--accent); }
+.side .color-red, .side .color-red:hover { background: #c0392b; } .side .color-darkgray, .side .color-darkgray:hover { background: #555555; } .side .color-black, .side .color-black:hover { background: #222222; }
+
+/* 크기 조절: － 비율 ＋ */
+.zoom-control { display: grid; grid-template-columns: 44px 1fr 44px; border: 1px solid var(--bar-line); border-radius: 8px; background: var(--btn); overflow: hidden; }
+.side .zoom-control button { border: none; border-radius: 0; background: transparent; }
+.side .zoom-control button:hover { background: var(--btn-hover); }
+.side .zoom-control input.zoom-label { border: none; border-radius: 0; background: transparent; text-align: center; justify-content: center; cursor: text; padding: 0; }
+.side .zoom-control input.zoom-label:focus { background: var(--btn-hover); }
+
+/* ===== PAGE AREA ===== */
+.page-container { 
+  position: fixed; top: var(--toolbar-height); left: 0; right: 0; bottom: 0; 
+  padding: 28px 0 60px; 
+  display: block; /* 플렉스 중앙정렬 해제(가로 스크롤 확보를 위해) */
+  overflow: auto; /* hidden이었던 부분을 auto로 변경하여 상하좌우 스크롤 허용 */
+  -webkit-overflow-scrolling: touch; 
+}
+.zoom-wrapper { 
+  display: flex; flex-direction: column; gap: 40px; 
+  transform-origin: top left; /* 확대 기준점을 상단 중앙에서 좌측 상단으로 변경 */
+  transition: transform 0.1s ease-out; /* 모바일 핀치 줌을 위해 속도를 0.1s로 단축 */
+  width: fit-content; /* 내부 콘텐츠 크기에 맞춤 */
+}
+.page { background: #fff; box-shadow: 0 4px 20px rgba(0,0,0,0.15); position: relative; width: 794px; height: 1123px; padding: 60px 47px; flex-shrink: 0; }
+.page-header { display: flex; justify-content: flex-end; align-items: baseline; padding: 0 4px 10px 0; font-family: 'Noto Serif KR', serif; color: #333; font-size: 14px; gap: 6px; }
+.page-header .page-no-label { font-size: 12px; color: #555; letter-spacing: 1px; }
+.page-header .page-no { font-size: 24px; font-weight: 700; color: #333; }
+
+/* ===== GRID ===== */
+.grid-wrapper { display: flex; flex-direction: column; gap: 8px; width: fit-content; margin: 0 auto; }
+.grid-row { display: flex; border: 2px solid var(--grid-color); position: relative; }
+.grid-cell { width: var(--cell-size); height: var(--cell-size); flex: 0 0 var(--cell-size); border-right: 1px solid var(--grid-color); box-sizing: border-box; display: flex; align-items: center; justify-content: center; font-size: var(--font-size); font-family: var(--font-family); cursor: text; position: relative; line-height: 1; color: #111; user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+.grid-row .grid-cell:last-child { border-right: none; }
+
+/* 글자 렌더링 컨테이너 (포인터 이벤트 방지하여 클릭이 셀에 직접 전달되게 함) */
+.cell-char { pointer-events: none; }
+.grid-cell.two-chars .cell-char { font-size: 19px; letter-spacing: 1px; }
+
+/* 복합 문장부호 (마침표 + 따옴표 등) 위치 정렬 */
+.punct-combo { position: relative; width: 100%; height: 100%; display: block; pointer-events: none; }
+.punct-combo .p1 { position: absolute; left: 6px; bottom: 4px; line-height: 1; }
+.punct-combo .p2 { position: absolute; right: 6px; top: 4px; line-height: 1; }
+
+.overflow-cell { position: absolute; right: calc(var(--cell-size) * -1); top: 0; width: var(--cell-size); height: var(--cell-size); display: flex; align-items: center; justify-content: center; font-size: var(--font-size); color: #111; pointer-events: none; line-height: 1; }/* 여백에 찍히는 마침표/쉼표도 좌측 하단으로 정렬 */
+.overflow-cell.punct-left { justify-content: flex-start; align-items: flex-end; padding-left: 6px; padding-bottom: 4px; }
+
+/* 커서 및 선택 영역 상태 스타일 */
+.grid-cell.cursor-cell { background: rgba(66,133,244,0.15); }
+.grid-cell.cursor-cell::after { content: ''; position: absolute; left: 2px; top: 15%; bottom: 15%; width: 2px; background: #2962ff; animation: blink 1s step-end infinite; }
+/* 한 칸에 두 글자가 들어갈 때 커서가 중간에 위치하는 경우 */
+.grid-cell.cursor-cell.cursor-middle::after { left: 50%; transform: translateX(-50%); }
+
+.grid-cell.selected-cell { background: rgba(66,133,244,0.12); }
+/* 절반만 선택된 상태 (투 글자 조합) */
+.grid-cell.selected-left { background: linear-gradient(to right, rgba(66,133,244,0.12) 50%, transparent 50%); }
+.grid-cell.selected-right { background: linear-gradient(to right, transparent 50%, rgba(66,133,244,0.12) 50%); }
+
+.grid-cell.selection-focus-cell { box-shadow: inset 0 0 0 2px rgba(41,98,255,0.25); }
+.grid-cell.composing-cell { background: rgba(255,193,7,0.2); }
+.grid-cell.composing-cell .cell-char { border-bottom: 2px solid #f57c00; padding-bottom: 1px; }
+
+/* 마침표, 쉼표 좌측 하단 정렬 */
+.grid-cell.punct-left { justify-content: flex-start; align-items: flex-end; padding-left: 6px; padding-bottom: 4px; }
+
+@keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0; } }
+
+/* ===== HIDDEN INPUT ===== */
+#hiddenInput { position: fixed; left: -100vw; top: 50%; transform: translateY(-50%); width: 100vw; height: 2.5em; opacity: 0; font-size: 16px; border: none; outline: none; resize: none; z-index: 1; padding: 0.2em; color: transparent; background: transparent; caret-color: transparent; -webkit-appearance: none; appearance: none; }
+
+/* ===== 링크 잘림 경고 배너 ===== */
+.truncate-warning {
+  display: none;
+  position: fixed;
+  top: var(--toolbar-height);
+  left: 0;
+  right: 0;
+  background: #e67e22;
+  color: #fff;
+  font-family: 'Noto Sans KR', sans-serif;
+  font-size: 13px;
+  text-align: center;
+  padding: 10px 16px;
+  z-index: 990;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  word-break: keep-all;
+  cursor: pointer;
+}
+.truncate-warning span {
+  opacity: 0.8;
+  font-size: 11px;
+  margin-left: 8px;
+  text-decoration: underline;
+}
+@media print {
+  .truncate-warning { display: none !important; }
+}
+  
+/* ===== TOAST ===== */
+.toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.82); color: #fff; padding: 12px 24px; border-radius: 999px; font-size: 14px; opacity: 0; transition: opacity 0.25s; z-index: 9999; font-family: 'Noto Sans KR', sans-serif; pointer-events: none; }
+.toast.show { opacity: 1; }
+
+/* ===== 글자 수 · 원고지 장수(오른쪽 메뉴의 맨 위 칸) ===== */
+.count-card { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--bar-line); border-radius: 10px; background: var(--btn); overflow: hidden; }
+.count-card div { display: grid; gap: 4px; justify-items: center; padding: 10px 4px; }
+.count-card div + div { border-left: 1px solid var(--bar-line); }
+.count-card b { font-size: 20px; font-weight: 700; color: var(--accent); line-height: 1; font-variant-numeric: tabular-nums; }
+.count-card span { font-size: 11px; color: var(--text-soft); white-space: nowrap; }
+
+/* ===== PRINT ===== */
+@media print {
+  @page { size: A4 portrait; margin: 0; }
+  html, body { width: auto !important; height: auto !important; overflow: visible !important; background: #fff !important; margin: 0 !important; padding: 0 !important; }
+  .toolbar, .toast, .side-open, #hiddenInput { display: none !important; }
+  .page-container, .truncate-warning { right: 0 !important; }
+  .page-container { position: static !important; padding: 0 !important; display: block !important; width: auto !important; height: auto !important; overflow: visible !important; }
+  .zoom-wrapper { transform: none !important; display: block !important; width: auto !important; height: auto !important; overflow: visible !important; gap: 0 !important; margin: 0 auto !important; }
+  .page { width: 210mm !important; height: 297mm !important; margin: 0 auto !important; padding: 60px 47px !important; box-shadow: none !important; overflow: hidden !important; page-break-after: always; break-after: page; -webkit-print-color-adjust: exact; print-color-adjust: exact; box-sizing: border-box !important; }
+  .page:last-child { page-break-after: auto; break-after: auto; }
+  .page-header { display: flex !important; justify-content: flex-end !important; align-items: baseline !important; gap: 6px !important; width: auto !important; text-align: right !important; padding: 0 4px 10px 0 !important; }
+  .page-header .page-no-label, .page-header .page-no { width: auto !important; display: inline !important; flex: none !important; text-align: inherit !important; }
+  /* ===== 아이패드/아이폰 강제 여백 해결용 ===== */
+  @supports (-webkit-touch-callout: none) {
+    .page {
+      width: auto !important;
+      height: auto !important;
+      padding: 0px 0px !important; /* 아이패드 자체 여백만 사용하도록 내부 여백 제거 */
+      zoom: 0.96 !important; /* 사파리(iOS) 인쇄 시 화면을 96%로 자동 축소 */
+    }
+  }
+}
+
+/* ===== PDF 로 저장하는 동안 =====
+   화면에만 필요한 것(커서 · 선택 표시 · 종이 그림자)을 감춘다. */
+body.exporting .page { box-shadow: none; border-radius: 0; }
+body.exporting .grid-cell.cursor-cell, body.exporting .grid-cell.selected-cell, body.exporting .grid-cell.selected-left, body.exporting .grid-cell.selected-right, body.exporting .grid-cell.composing-cell { background: transparent; }
+body.exporting .grid-cell.cursor-cell::after { display: none; }
+body.exporting .grid-cell.selection-focus-cell { box-shadow: none; }
+
+/* ===== 종이와 알림 ===== */
+html, body { background: var(--paper-bg); }
+/* 종이: 그림자를 두 겹으로 부드럽게 두어 바탕에서 살짝 떠 보이게 한다. */
+.page { border-radius: 2px; box-shadow: 0 1px 2px rgba(60,50,30,0.10), 0 14px 34px rgba(60,50,30,0.13); }
+.page-header .page-no-label { letter-spacing: 2px; }
+.toast { background: rgba(31,43,68,0.94); box-shadow: 0 6px 18px rgba(30,40,60,0.20); }
+.truncate-warning { background: #b9770e; }
+/* 넓은 화면에서는 원고지 칸과 경고 줄이 오른쪽 메뉴만큼 비켜 선다. */
+body:not(.compact):not(.side-closed) .page-container, body:not(.compact):not(.side-closed) .truncate-warning { right: var(--side-w); }
+/* 알림은 원고지 칸의 가운데에 뜬다. */
+body:not(.compact):not(.side-closed) .toast { left: calc((100% - var(--side-w)) / 2); }
+
+</style>
+</head>
+<body>
+
+<!-- 좁은 화면의 위 줄 -->
+<header class="toolbar topbar" id="toolbar">
+  <div class="toolbar-title">원고지 쓰기</div>
+  <div class="mobile-undo-redo">
+    <button class="icon-btn btn-undo" onclick="undo()" title="되돌리기 (Ctrl+Z)" aria-label="되돌리기"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a4 4 0 0 1 0 8h-1"/></svg></button>
+    <button class="icon-btn btn-redo" onclick="redo()" title="다시 실행 (Ctrl+Y)" aria-label="다시 실행"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 14l5-5-5-5"/><path d="M20 9H9a4 4 0 0 0 0 8h1"/></svg></button>
+  </div>
+  <button class="menu-toggle" id="menuToggle" onclick="toggleMenu()" aria-label="메뉴">☰</button>
+</header>
+
+<!-- 메뉴를 접었을 때 다시 펴는 단추(넓은 화면) -->
+<button class="toolbar side-open" onclick="toggleSide()" title="메뉴 펴기" aria-label="메뉴 펴기"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 6l-6 6 6 6"/><path d="M19 6l-6 6 6 6"/></svg>메뉴</button>
+
+<!-- 오른쪽 메뉴: 위에서부터 자주 쓰는 차례로 둔다(내기 → 모양 → 보기 → 고치기). -->
+<aside class="toolbar side" id="toolbarMenu" aria-label="메뉴">
+  <!-- 되돌리기는 자주 쓰는 단추라 제목 줄에 아이콘으로 둔다(따로 묶음을 만들지 않는다). -->
+  <div class="side-head">
+    <div class="toolbar-title">원고지 쓰기</div>
+    <button class="icon-btn btn-undo" onclick="undo()" title="되돌리기 (Ctrl+Z)" aria-label="되돌리기"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a4 4 0 0 1 0 8h-1"/></svg></button>
+    <button class="icon-btn btn-redo" onclick="redo()" title="다시 실행 (Ctrl+Y)" aria-label="다시 실행"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 14l5-5-5-5"/><path d="M20 9H9a4 4 0 0 0 0 8h1"/></svg></button>
+    <button class="icon-btn" onclick="toggleSide()" title="메뉴 접기" aria-label="메뉴 접기"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 6l6 6-6 6"/><path d="M5 6l6 6-6 6"/></svg></button>
+  </div>
+  <div class="count-card" id="countBadge" aria-live="polite" aria-label="글자 수와 원고지 장수"></div>
+
+  <section class="side-section">
+    <h2>제목과 이름</h2>
+    <input type="text" id="titleInput" placeholder="제목" maxlength="40" autocomplete="off" aria-label="제목">
+    <input type="text" id="nameInput" placeholder="이름" maxlength="20" autocomplete="off" aria-label="이름" oninput="saveName(this.value)">
+    <button onclick="applyHeader()" title="제목은 둘째 줄 가운데, 이름은 넷째 줄 오른쪽에 놓습니다"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16"/><path d="M8 10h8"/><path d="M4 14h16"/><path d="M12 18h8"/></svg>원고지 맨 위에 넣기</button>
+  </section>
+
+  <section class="side-section">
+    <h2>파일</h2>
+    <button class="btn-primary" onclick="doPDF()"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>PDF로 저장</button>
+    <div class="side-row">
+      <button onclick="saveText()" title="글만 든 파일(.txt)로 저장"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 12v6"/><path d="M9.5 15.5L12 18l2.5-2.5"/></svg>글 저장</button>
+      <button onclick="document.getElementById('openFile').click()" title="저장해 둔 글 파일(.txt) 열기"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 18v-6"/><path d="M9.5 14.5L12 12l2.5 2.5"/></svg>글 열기</button>
+    </div>
+    <div class="side-row">
+      <button onclick="doPrint()"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8V3h10v5"/><rect x="3" y="8" width="18" height="9" rx="2"/><path d="M7 14h10v7H7z"/></svg>인쇄</button>
+      <button onclick="copyText()"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>글 복사</button>
+    </div>
+    <input type="file" id="openFile" accept=".txt,text/plain" hidden onchange="openText(this)">
+  </section>
+
+  <section class="side-section">
+    <h2>모양</h2>
+    <select id="fontSelect" onchange="changeFont(this.value)" title="글꼴" aria-label="글꼴">
+      <option value="'Noto Serif KR', serif">명조 (Noto Serif)</option>
+      <option value="'Nanum Myeongjo', serif">나눔명조</option>
+      <option value="'Noto Sans KR', sans-serif">고딕 (Noto Sans)</option>
+      <option value="'Nanum Gothic', sans-serif">나눔고딕</option>
+    </select>
+    <div class="color-set" title="원고지 줄 색">
+      <button class="color-btn color-red active"  data-color="#c0392b" onclick="changeColor(this)" title="빨강" aria-label="줄 색 빨강"></button>
+      <button class="color-btn color-darkgray"    data-color="#555555" onclick="changeColor(this)" title="회색" aria-label="줄 색 회색"></button>
+      <button class="color-btn color-black"       data-color="#222222" onclick="changeColor(this)" title="검정" aria-label="줄 색 검정"></button>
+    </div>
+  </section>
+
+  <section class="side-section">
+    <h2>보기</h2>
+    <div class="zoom-control">
+      <button onclick="setZoom('out')" title="작게" aria-label="작게">－</button>
+      <input type="text" class="zoom-label" id="zoomInput" value="100%" aria-label="크기 비율"
+             onchange="handleManualZoom(this.value)"
+             onfocus="this.value = this.value.replace('%', '')"
+             onblur="if(!this.value.includes('%')) this.value += '%'" title="비율 직접 입력">
+      <button onclick="setZoom('in')"  title="크게" aria-label="크게">＋</button>
+    </div>
+    <div class="side-row">
+      <button onclick="setZoom('width')">너비 맞춤</button>
+      <button onclick="setZoom('height')">높이 맞춤</button>
+    </div>
+  </section>
+
+  <section class="side-section side-end">
+    <button class="btn-quiet" onclick="newDocument()"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/></svg>모두 지우고 새로 쓰기</button>
+  </section>
+</aside>
+
+<div class="truncate-warning" id="truncateWarning" onclick="this.style.display='none'; document.getElementById('pageContainer').style.top='var(--toolbar-height)';">
+  글자 수 제한으로 링크가 완전하지 않아 글의 일부만 보여집니다. 원고지의 주소 끝까지 붙여넣기 되도록 해주세요. <span>(닫기 ✕)</span>
+</div>  
+
+  
+<div class="page-container" id="pageContainer">
+  <div class="zoom-wrapper" id="zoomWrapper"></div>
+</div>
+
+<textarea id="hiddenInput"
+  autocomplete="off" autocorrect="off"
+  autocapitalize="off" spellcheck="false"></textarea>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ===== 모바일 더블 탭 확대 방지 ===== */
+let lastTouchEnd = 0;
+document.addEventListener('touchend', function(e) {
+  const now = (new Date()).getTime();
+  if (now - lastTouchEnd <= 300) {
+    if (!e.target.closest('button') && !e.target.closest('select') && !e.target.closest('input')) e.preventDefault();
+  }
+  lastTouchEnd = now;
+}, { passive: false });
+
+
+const COLS = 20, ROWS = 20;
+
+let state = {
+  chars: [], cursorPos: 0, selectionStart: 0, selectionEnd: 0,
+  font: "'Noto Serif KR', serif", color: '#c0392b', composing: false
+};
+
+let zoomState = { mode: 'width', scale: 1.0 };
+
+const SENTINEL = '\u200B';
+const SENTINEL_LEN = SENTINEL.length;
+
+const scroller = document.getElementById('pageContainer');
+const input    = document.getElementById('hiddenInput');
+const supportsBeforeInput = 'onbeforeinput' in input;
+
+const MANUAL_BEFOREINPUT_TYPES = new Set([
+  'deleteContentBackward', 'deleteContentForward', 'deleteWordBackward',
+  'deleteWordForward', 'insertParagraph', 'insertLineBreak'
+]);
+
+/* ===== Undo / Redo 기능 ===== */
+const MAX_HISTORY = 30;
+let historyStack = [];
+let historyIndex = -1;
+
+function saveHistory(force = false) {
+  const currentState = { c: [...state.chars], s: state.selectionStart, e: state.selectionEnd };
+  if (!force && historyIndex >= 0) {
+    const prev = historyStack[historyIndex];
+    if (currentState.c.join('') === prev.c.join('')) return; 
+  }
+  if (historyIndex < historyStack.length - 1) historyStack = historyStack.slice(0, historyIndex + 1);
+
+  historyStack.push(currentState);
+  if (historyStack.length > MAX_HISTORY) historyStack.shift();
+  else historyIndex++;
+  updateUndoRedoUI();
+}
+
+function restoreHistory(idx) {
+  if (idx < 0 || idx >= historyStack.length) return;
+  const item = historyStack[idx];
+  state.chars = [...item.c];
+  state.selectionStart = item.s; state.selectionEnd = item.e; state.cursorPos = item.e;
+  historyIndex = idx;
+  render(); syncInputFromState(); saveToURL(); scrollToCursor(); updateUndoRedoUI(); focusInput();
+}
+
+function undo() { if (historyIndex > 0) restoreHistory(historyIndex - 1); }
+function redo() { if (historyIndex < historyStack.length - 1) restoreHistory(historyIndex + 1); }
+
+function updateUndoRedoUI() {
+  document.querySelectorAll('.btn-undo').forEach(b => b.disabled = historyIndex <= 0);
+  document.querySelectorAll('.btn-redo').forEach(b => b.disabled = historyIndex >= historyStack.length - 1);
+}
+
+/* ===== 단축키 ===== */
+document.addEventListener('keydown', (e) => {
+  const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+  const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
+  if (cmdOrCtrl && !e.altKey) {
+    const key = e.key.toLowerCase();
+    if (key === 'z') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); } 
+    else if (key === 'y') { e.preventDefault(); redo(); }
+  }
+});
+
+/* ===== 유틸 ===== */
+function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
+function normalizeText(text) { return String(text ?? '').replace(/\r\n?/g, '\n').replace(/\u200B/g, ''); }
+function hasSelection() { return state.selectionStart !== state.selectionEnd; }
+function getSelectedText() {
+  const s = Math.min(state.selectionStart, state.selectionEnd);
+  const e = Math.max(state.selectionStart, state.selectionEnd);
+  return state.chars.slice(s, e).join('');
+}
+
+function setLogicalSelection(start, end = start, opts = {}) {
+  const max = state.chars.length;
+  const s = clamp(Math.min(start, end), 0, max);
+  const e = clamp(Math.max(start, end), 0, max);
+  state.selectionStart = s; state.selectionEnd = e; state.cursorPos = e;
+
+  if (opts.syncInput)  syncInputFromState();
+  if (opts.renderView) render();
+  if (opts.scroll)     scrollToCursor();
+  if (opts.focus)      focusInput();
+}
+
+function applyAutoReplace() {
+  let text = state.chars.join('');
+  if (!text.includes('...')) return false;
+
+  let changed = false;
+  let s = state.selectionStart, e = state.selectionEnd;
+
+  while (text.includes('...')) {
+    const idx = text.indexOf('...');
+    text = text.substring(0, idx) + '…' + text.substring(idx + 3);
+    changed = true;
+    if (s > idx + 2) s -= 2; else if (s > idx) s = idx + 1;
+    if (e > idx + 2) e -= 2; else if (e > idx) e = idx + 1;
+  }
+  state.chars = text.split('');
+  state.selectionStart = s; state.selectionEnd = e; state.cursorPos = e;
+  return changed;
+}
+
+function replaceRangeInState(start, end, text) {
+  const max = state.chars.length;
+  const s = clamp(Math.min(start, end), 0, max), e = clamp(Math.max(start, end), 0, max);
+  const safe = normalizeText(text);
+  state.chars.splice(s, e - s, ...safe.split(''));
+  const next = s + safe.length;
+  setLogicalSelection(next, next);
+  return true;
+}
+
+function deleteRangeInState(start, end) {
+  const s = Math.min(start, end), e = Math.max(start, end);
+  if (s === e) return false;
+  state.chars.splice(s, e - s);
+  setLogicalSelection(s, s);
+  return true;
+}
+
+function deleteBackwardInState() {
+  if (hasSelection()) return deleteRangeInState(state.selectionStart, state.selectionEnd);
+  if (state.cursorPos <= 0) return false;
+  state.chars.splice(state.cursorPos - 1, 1);
+  setLogicalSelection(state.cursorPos - 1, state.cursorPos - 1);
+  return true;
+}
+
+function deleteForwardInState() {
+  if (hasSelection()) return deleteRangeInState(state.selectionStart, state.selectionEnd);
+  if (state.cursorPos >= state.chars.length) return false;
+  state.chars.splice(state.cursorPos, 1);
+  setLogicalSelection(state.cursorPos, state.cursorPos);
+  return true;
+}
+
+function deleteWordBackwardInState() {
+  if (hasSelection()) return deleteRangeInState(state.selectionStart, state.selectionEnd);
+  const text = state.chars.join('');
+  let i = state.cursorPos;
+  if (i <= 0) return false;
+  while (i > 0 && /\s/.test(text[i - 1])) i--;
+  while (i > 0 && !/\s/.test(text[i - 1])) i--;
+  return deleteRangeInState(i, state.cursorPos);
+}
+
+function deleteWordForwardInState() {
+  if (hasSelection()) return deleteRangeInState(state.selectionStart, state.selectionEnd);
+  const text = state.chars.join('');
+  let i = state.cursorPos;
+  if (i >= text.length) return false;
+  while (i < text.length && /\s/.test(text[i])) i++;
+  while (i < text.length && !/\s/.test(text[i])) i++;
+  return deleteRangeInState(state.cursorPos, i);
+}
+
+function afterStateEdit(save = true) {
+  applyAutoReplace(); render(); syncInputFromState();
+  if (save) { saveToURL(); saveHistory(); }
+  scrollToCursor();
+}
+
+/* ===== hidden textarea 동기화 ===== */
+function ensureSentinel() {
+  if (input.value.startsWith(SENTINEL)) return;
+  const start = input.selectionStart ?? 0, end = input.selectionEnd ?? start;
+  input.value = SENTINEL + input.value.split(SENTINEL).join('');
+  try {
+    input.setSelectionRange(Math.max(SENTINEL_LEN, start + SENTINEL_LEN), Math.max(SENTINEL_LEN, end + SENTINEL_LEN));
+  } catch (e) {}
+}
+
+function clampNativeSelection() {
+  const valueLen = input.value.length;
+  let start = input.selectionStart ?? SENTINEL_LEN, end = input.selectionEnd ?? start;
+  start = clamp(start, SENTINEL_LEN, valueLen); end = clamp(end, SENTINEL_LEN, valueLen);
+  if (start > end) [start, end] = [end, start];
+  if (input.selectionStart !== start || input.selectionEnd !== end) {
+    try { input.setSelectionRange(start, end); } catch (e) {}
+  }
+  return { start, end };
+}
+
+function syncInputFromState() {
+  const text = state.chars.join('');
+  const nextValue = SENTINEL + text;
+  if (input.value !== nextValue) input.value = nextValue;
+  const s = SENTINEL_LEN + clamp(state.selectionStart, 0, state.chars.length);
+  const e = SENTINEL_LEN + clamp(state.selectionEnd,   0, state.chars.length);
+  try { input.setSelectionRange(s, e); } catch (e) {}
+}
+
+function syncStateFromInput() {
+  ensureSentinel();
+  const text = normalizeText(input.value.slice(SENTINEL_LEN));
+  state.chars = text.split('');
+  const { start, end } = clampNativeSelection();
+  setLogicalSelection(start - SENTINEL_LEN, end - SENTINEL_LEN);
+  if (!state.composing && applyAutoReplace()) syncInputFromState();
+}
+
+function syncFromNativeInput(save = true) {
+  syncStateFromInput(); render();
+  if (save) { saveToURL(); saveHistory(); }
+  scrollToCursor();
+}
+
+/* ===== LZ ===== */
+const LZ = {
+  compress(str) {
+    if (!str) return '';
+    try {
+      const bytes = new TextEncoder().encode(str);
+      let bin = ''; bytes.forEach(b => bin += String.fromCharCode(b));
+      return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+    } catch(e) { return ''; }
+  },
+  decompress(b64) {
+    if (!b64) return '';
+    try {
+      b64 = b64.replace(/-/g,'+').replace(/_/g,'/');
+      
+      // Base64 유효성 보정: 문자열 길이가 4의 배수 기준 1개 남으면 atob에서 무조건 에러가 발생하므로 마지막 글자를 버림
+      if (b64.replace(/=/g, '').length % 4 === 1) {
+        b64 = b64.slice(0, -1);
+      }
+      
+      while (b64.length % 4) b64 += '=';
+      const bin = atob(b64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      
+      // fatal: false 설정으로 깨진 유니코드 문자열이 있어도 에러 없이 살릴 수 있는 데까지 복구함
+      return new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+    } catch(e) { return ''; }
+  }
+};
+
+/* ===== URL 저장 / 불러오기 ===== */
+/* 쓰던 글은 주소에 담고, 이 브라우저에도 남긴다. 주소 없이 다시 열면 남겨 둔 글을 이어서 쓴다. */
+const DRAFT_KEY = 'wongoji-draft';
+let restoredDraft = false;
+
+function saveToURL() {
+  const hash = LZ.compress(JSON.stringify({ t: state.chars.join(''), f: state.font, c: state.color }));
+  history.replaceState(null, '', '#' + hash);
+  // 저장 공간을 못 쓰는 브라우저(사생활 보호 창 등)에서도 주소 저장은 그대로 된다.
+  try { localStorage.setItem(DRAFT_KEY, hash); } catch (e) { /* 남기지 못해도 글쓰기는 계속된다 */ }
+}
+
+function loadDraft() {
+  try { return localStorage.getItem(DRAFT_KEY) || ''; } catch (e) { return ''; }
+}
+
+function loadFromURL() {
+  // 주소에 글이 있으면 그 글을, 없으면 이 브라우저에 남겨 둔 글을 연다.
+  const fromURL = location.hash.slice(1);
+  const hash = fromURL || loadDraft();
+  if (!hash) return;
+  try {
+    const decompressed = LZ.decompress(hash);
+    let data = {};
+    let isRecovered = false; // 복구 여부 체크 플래그
+    
+    try {
+      // 1차 시도: 정상적인 JSON 파싱
+      data = JSON.parse(decompressed);
+    } catch(e) {
+      // 2차 시도: 링크가 잘려서 파싱에 실패한 경우 강제 복구
+      const tIndex = decompressed.indexOf('"t":"');
+      if (tIndex !== -1) {
+        let textPart = decompressed.slice(tIndex + 5);
+        
+        textPart = textPart.replace(/["}\],]+$/, ''); 
+        textPart = textPart.replace(/\\$/, ''); 
+        data.t = textPart.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+        
+        isRecovered = true; // 텍스트가 강제 복구되었음을 표시
+      }
+    }
+
+    state.chars = data.t ? data.t.split('') : [];
+    restoredDraft = !fromURL && state.chars.length > 0;
+    state.font  = data.f || state.font; 
+    state.color = data.c || state.color;
+    state.cursorPos = 0; state.selectionStart = 0; state.selectionEnd = 0;
+    
+    applySettings();
+
+    // 텍스트가 잘린 상태로 복구된 경우 경고창 띄우기
+    if (isRecovered) {
+      const warningEl = document.getElementById('truncateWarning');
+      if (warningEl) {
+        warningEl.style.display = 'block';
+        // 배너가 화면을 가리지 않게 원고지 컨테이너의 시작 위치를 배너 높이만큼 내림
+        document.getElementById('pageContainer').style.top = `calc(var(--toolbar-height) + ${warningEl.offsetHeight}px)`;
+      }
+    }
+
+  } catch(e) {
+    console.error('URL 복구 실패:', e);
+  }
+}
+
+function applySettings() {
+  document.documentElement.style.setProperty('--font-family', state.font);
+  document.documentElement.style.setProperty('--grid-color',  state.color);
+  document.getElementById('fontSelect').value = state.font;
+  document.querySelectorAll('.color-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.color === state.color);
+  });
+}
+
+/* ===== 레이아웃 로직 고도화 (글자 그룹핑 적용) ===== */
+function buildLayout() {
+  const displayChars = state.chars.slice();
+  const pages = [];
+  let page = { rows: [] };
+  let row  = { cells: [], overflow: null, isNewlineEnded: false, newlineLogicalIdx: -1 };
+
+  for (let i = 0; i < displayChars.length; i++) {
+    const ch = displayChars[i];
+    if (ch === '\n') {
+      row.isNewlineEnded = true; row.newlineLogicalIdx = i;
+      page.rows.push(row);
+      if (page.rows.length === ROWS) { pages.push(page); page = { rows: [] }; }
+      row = { cells: [], overflow: null, isNewlineEnded: false, newlineLogicalIdx: -1 };
+      continue;
+    }
+
+    let cellStr = ch;
+    let charsInCell = 1;
+    let isPunctCombo = false;
+    const nextCh = displayChars[i + 1];
+
+    // 1. 규칙: 마침표/쉼표 바로 뒤에 따옴표가 오면 한 칸으로 병합
+    if ((ch === '.' || ch === ',') && nextCh && /['"”’]/.test(nextCh)) {
+      cellStr += nextCh;
+      charsInCell = 2;
+      isPunctCombo = true;
+    } 
+    // 2. 규칙: 소문자나 숫자가 연속해서 2개 오면 한 칸으로 병합
+    else if (/[a-z0-9]/.test(ch) && nextCh && /[a-z0-9]/.test(nextCh)) {
+      cellStr += nextCh;
+      charsInCell = 2;
+    }
+
+    row.cells.push({
+      char: cellStr, logicalIdx: i, length: charsInCell,
+      isPunctCombo: isPunctCombo, empty: false
+    });
+
+    i += (charsInCell - 1); // 병합된 글자는 루프 인덱스 스킵
+
+    // 오버플로우(여백) 로직
+    if (row.cells.length === COLS) {
+      const nextIdx = i + 1;
+      const lookahead = displayChars[nextIdx];
+      
+      // 줄 마지막 칸을 넘어가는 문장부호 처리
+      if (lookahead && lookahead !== '\n' && /^[.,?!'"”’ ]$/.test(lookahead)) {
+        let overflowStr = lookahead;
+        let overflowLen = 1;
+        let overflowCombo = false;
+        const nextLookahead = displayChars[nextIdx + 1];
+
+        if ((lookahead === '.' || lookahead === ',') && nextLookahead && /['"”’]/.test(nextLookahead)) {
+          overflowStr += nextLookahead;
+          overflowLen = 2;
+          overflowCombo = true;
+        }
+
+        row.overflow = {
+          char: overflowStr, logicalIdx: nextIdx, length: overflowLen,
+          isPunctCombo: overflowCombo
+        };
+        i += overflowLen;
+      }
+      
+      page.rows.push(row);
+      if (page.rows.length === ROWS) { pages.push(page); page = { rows: [] }; }
+      row = { cells: [], overflow: null, isNewlineEnded: false, newlineLogicalIdx: -1 };
+    }
+  }
+
+  // 남은 셀 처리
+  if (row.cells.length > 0 || displayChars[displayChars.length - 1] === '\n' || displayChars.length === 0) page.rows.push(row);
+  if (page.rows.length > 0) pages.push(page);
+  if (pages.length === 0) pages.push({ rows: [{ cells: [], overflow: null, isNewlineEnded: false, newlineLogicalIdx: -1 }] });
+
+  // 빈 칸(Empty cells) 채워넣기
+  let lastLogical = 0;
+  for (let pIdx = 0; pIdx < pages.length; pIdx++) {
+    const p = pages[pIdx];
+    while (p.rows.length < ROWS) p.rows.push({ cells: [], overflow: null, isNewlineEnded: false, newlineLogicalIdx: -1 });
+    for (let rIdx = 0; rIdx < ROWS; rIdx++) {
+      const r = p.rows[rIdx];
+      for (let cIdx = 0; cIdx < COLS; cIdx++) {
+        if (r.cells[cIdx]) {
+          lastLogical = r.cells[cIdx].logicalIdx + r.cells[cIdx].length;
+        } else {
+          r.cells[cIdx] = {
+            char: '', logicalIdx: (r.isNewlineEnded && !r.overflow) ? r.newlineLogicalIdx : lastLogical,
+            length: 1, empty: true
+          };
+        }
+      }
+      if (r.overflow) lastLogical = r.overflow.logicalIdx + r.overflow.length;
+      if (r.isNewlineEnded) lastLogical = r.newlineLogicalIdx + 1;
+    }
+  }
+
+  return { pages };
+}
+
+/* ===== 글자 수 · 원고지 장수 ===== */
+function updateCount(pageCount) {
+  const badge = document.getElementById('countBadge');
+  if (!badge) return;
+  // 줄바꿈은 글자로 세지 않는다. 공백을 뺀 글자 수도 함께 보인다.
+  const letters = state.chars.filter(ch => ch !== '\n');
+  const noSpace = letters.filter(ch => !/\s/.test(ch)).length;
+  badge.innerHTML = '<div><b>' + letters.length + '</b><span>글자</span></div>'
+    + '<div><b>' + noSpace + '</b><span>공백 빼고</span></div>'
+    + '<div><b>' + pageCount + '</b><span>원고지 장</span></div>';
+}
+
+/* ===== 렌더 ===== */
+function render() {
+  const layout = buildLayout();
+  updateCount(layout.pages.length);
+  const wrapper = document.getElementById('zoomWrapper');
+  const selectionActive = hasSelection();
+
+  while (wrapper.children.length < layout.pages.length) wrapper.appendChild(createPage(wrapper.children.length));
+  while (wrapper.children.length > layout.pages.length) wrapper.removeChild(wrapper.lastChild);
+
+  let foundCursor = false;
+
+  for (let pIdx = 0; pIdx < layout.pages.length; pIdx++) {
+    const pageData = layout.pages[pIdx];
+    const pageEl   = wrapper.children[pIdx];
+    pageEl.querySelector('.page-no').textContent = pIdx + 1;
+    const gridRows = pageEl.querySelectorAll('.grid-row');
+
+    for (let rIdx = 0; rIdx < ROWS; rIdx++) {
+      const rowData = pageData.rows[rIdx];
+      const rowEl   = gridRows[rIdx];
+      const cells   = rowEl.querySelectorAll('.grid-cell');
+
+      for (let cIdx = 0; cIdx < COLS; cIdx++) {
+        const cellData = rowData.cells[cIdx];
+        const cellEl   = cells[cIdx];
+        
+        // 1. 글자/부호 DOM 주입
+        if (cellData.isPunctCombo) {
+          cellEl.innerHTML = `<span class="punct-combo"><span class="p1">${cellData.char[0]}</span><span class="p2">${cellData.char[1]}</span></span>`;
+        } else {
+          cellEl.innerHTML = `<span class="cell-char">${cellData.char}</span>`;
+        }
+        cellEl.dataset.logicalIdx = cellData.logicalIdx;
+
+        // 2. 커서 위치 판별 (글자 사이 절반 커서 포함)
+        let isCursor = false;
+        let isCursorMiddle = false;
+        if (!selectionActive && !foundCursor) {
+          if (state.cursorPos === cellData.logicalIdx) {
+            isCursor = true; foundCursor = true;
+          } else if (cellData.length === 2 && state.cursorPos === cellData.logicalIdx + 1) {
+            isCursor = true; isCursorMiddle = true; foundCursor = true;
+          } else if (cellData.empty && cellData.logicalIdx >= state.cursorPos) {
+            isCursor = true; foundCursor = true;
+          }
+        }
+
+        // 3. 선택 영역 판별 (절반 선택 포함)
+        let isSelected = false;
+        let isSelectedLeft = false;
+        let isSelectedRight = false;
+        let isSelectionFocus = false;
+
+        if (selectionActive && !cellData.empty) {
+          const s1 = cellData.logicalIdx >= state.selectionStart && cellData.logicalIdx < state.selectionEnd;
+          const s2 = cellData.length === 2 && (cellData.logicalIdx + 1) >= state.selectionStart && (cellData.logicalIdx + 1) < state.selectionEnd;
+
+          if (cellData.length === 1) { if (s1) isSelected = true; } 
+          else {
+            if (s1 && s2) isSelected = true;
+            else if (s1) isSelectedLeft = true;
+            else if (s2) isSelectedRight = true;
+          }
+
+          if (state.selectionEnd - 1 === cellData.logicalIdx) isSelectionFocus = true;
+          if (cellData.length === 2 && state.selectionEnd - 1 === cellData.logicalIdx + 1) isSelectionFocus = true;
+        }
+
+        const isComposingChar = state.composing && state.cursorPos > 0 && !cellData.empty &&
+          ((cellData.logicalIdx === state.cursorPos - 1) || (cellData.length === 2 && cellData.logicalIdx + 1 === state.cursorPos - 1));
+
+        // 4. 클래스 종합 적용
+        cellEl.className = 'grid-cell';
+        if (cellData.length === 2 && !cellData.isPunctCombo) cellEl.classList.add('two-chars');
+        
+        if (isCursor && !state.composing && !selectionActive) {
+          cellEl.classList.add('cursor-cell');
+          if (isCursorMiddle) cellEl.classList.add('cursor-middle');
+        }
+        
+        if (isSelected) cellEl.classList.add('selected-cell');
+        else if (isSelectedLeft) cellEl.classList.add('selected-left');
+        else if (isSelectedRight) cellEl.classList.add('selected-right');
+        
+        if (isSelectionFocus) cellEl.classList.add('selection-focus-cell');
+        if (isComposingChar) cellEl.classList.add('composing-cell');
+        if (!cellData.isPunctCombo && (cellData.char === '.' || cellData.char === ',')) cellEl.classList.add('punct-left');
+      }
+
+      // 5. 오버플로우 (여백 부호)
+      let overflowEl = rowEl.querySelector('.overflow-cell');
+      if (rowData.overflow) {
+        if (!overflowEl) { overflowEl = document.createElement('div'); overflowEl.className = 'overflow-cell'; rowEl.appendChild(overflowEl); }
+        
+        if (rowData.overflow.isPunctCombo) {
+          overflowEl.innerHTML = `<span class="punct-combo"><span class="p1">${rowData.overflow.char[0]}</span><span class="p2">${rowData.overflow.char[1]}</span></span>`;
+          overflowEl.classList.remove('punct-left');
+        } else {
+          overflowEl.innerHTML = `<span class="cell-char">${rowData.overflow.char}</span>`;
+          if (rowData.overflow.char === '.' || rowData.overflow.char === ',') {
+            overflowEl.classList.add('punct-left');
+          } else {
+            overflowEl.classList.remove('punct-left');
+          }
+        }
+      } else if (overflowEl) overflowEl.remove();
+    }
+  }
+  // 👇 렌더링이 끝난 후 바뀐 페이지 높이에 맞춰 줌 여백을 다시 계산하도록 아래 한 줄 추가
+  applyZoom();
+}
+
+function createPage(idx) {
+  const page = document.createElement('div'); page.className = 'page';
+  let html = `<div class="page-header"><span class="page-no-label">NO.</span><span class="page-no">${idx + 1}</span></div><div class="grid-wrapper">`;
+  for (let r = 0; r < ROWS; r++) {
+    html += `<div class="grid-row">`;
+    for (let c = 0; c < COLS; c++) html += `<div class="grid-cell"></div>`;
+    html += `</div>`;
+  }
+  html += `</div>`;
+  page.innerHTML = html;
+  return page;
+}
+
+/* ===== 포커스 및 터치 처리 (절반 터치 좌표 계산) ===== */
+function focusInput() { input.focus({ preventScroll: true }); }
+
+let touchStartX = 0, touchStartY = 0;
+
+document.addEventListener('touchstart', (e) => {
+  if (e.target.closest('.toolbar')) return;
+  touchStartX = e.touches[0].clientX; touchStartY = e.touches[0].clientY;
+  // focusInput(); // <-- 삭제: 여기서 포커스를 주면 모바일에서 키보드가 곧바로 사라지는 원인이 됩니다.
+}, { passive: true });
+
+document.addEventListener('touchend', (e) => {
+  if (e.target.closest('.toolbar')) return;
+  const t = e.changedTouches[0];
+  const dist = Math.hypot(t.clientX - touchStartX, t.clientY - touchStartY);
+
+  if (dist < 12) {
+    // 탭으로 판정된 경우 브라우저 기본 클릭 동작을 막아 포커스 해제(blur)를 방지합니다.
+    if (e.cancelable) e.preventDefault();
+
+    const cell = document.elementFromPoint(t.clientX, t.clientY)?.closest('.grid-cell');
+    if (cell) {
+      let idx = parseInt(cell.dataset.logicalIdx, 10);
+      if (!isNaN(idx)) {
+        // 셀의 우측 절반을 터치했으면 커서를 글자 사이로 이동
+        const rect = cell.getBoundingClientRect();
+        if (cell.classList.contains('two-chars') && (t.clientX - rect.left) > (rect.width / 2)) {
+          idx += 1;
+        }
+        state.composing = false;
+        setLogicalSelection(idx, idx, { renderView: true, syncInput: true });
+      }
+    }
+    // 위치 계산이 모두 끝난 후 포커스를 줍니다.
+    focusInput();
+  }
+}, { passive: false });
+
+document.addEventListener('pointerdown', (e) => {
+  if (e.pointerType !== 'mouse' || e.target.closest('.toolbar')) return;
+  const cell = e.target.closest('.grid-cell');
+  if (cell) {
+    e.preventDefault();
+    let idx = parseInt(cell.dataset.logicalIdx, 10);
+    if (!isNaN(idx)) { 
+      const rect = cell.getBoundingClientRect();
+      if (cell.classList.contains('two-chars') && (e.clientX - rect.left) > (rect.width / 2)) {
+        idx += 1;
+      }
+      state.composing = false; 
+      setLogicalSelection(idx, idx, { renderView: true, syncInput: true }); 
+    }
+  } else if (!e.target.closest('.page-container')) return;
+  focusInput();
+});
+
+document.addEventListener('click', (e) => {
+  const toolbar = document.getElementById('toolbar');
+  const menu    = document.getElementById('toolbarMenu');
+  if (toolbar.classList.contains('compact') && menu.classList.contains('open')) {
+    if (!e.target.closest('#toolbarMenu') && !e.target.closest('#menuToggle')) menu.classList.remove('open');
+  }
+});
+
+/* ===== IME / 입력 / 이벤트 ===== */
+let selectionSyncRAF = 0;
+function scheduleSelectionSync(scroll = false) {
+  if (selectionSyncRAF) cancelAnimationFrame(selectionSyncRAF);
+  selectionSyncRAF = requestAnimationFrame(() => {
+    selectionSyncRAF = 0;
+    if (document.activeElement !== input) return;
+    syncStateFromInput(); render(); if (scroll) scrollToCursor();
+  });
+}
+
+input.addEventListener('focus', () => { ensureSentinel(); syncInputFromState(); });
+input.addEventListener('blur', () => { state.composing = false; render(); });
+input.addEventListener('select', () => { scheduleSelectionSync(false); });
+document.addEventListener('selectionchange', () => { if (document.activeElement === input) scheduleSelectionSync(false); });
+
+input.addEventListener('beforeinput', (e) => {
+  if (!MANUAL_BEFOREINPUT_TYPES.has(e.inputType)) return;
+  syncStateFromInput();
+  if (state.composing || e.isComposing || !e.cancelable) return;
+
+  let changed = false;
+  switch (e.inputType) {
+    case 'deleteContentBackward': e.preventDefault(); changed = deleteBackwardInState(); break;
+    case 'deleteContentForward':  e.preventDefault(); changed = deleteForwardInState(); break;
+    case 'deleteWordBackward':    e.preventDefault(); changed = deleteWordBackwardInState(); break;
+    case 'deleteWordForward':     e.preventDefault(); changed = deleteWordForwardInState(); break;
+    case 'insertParagraph':
+    case 'insertLineBreak':       e.preventDefault(); changed = replaceRangeInState(state.selectionStart, state.selectionEnd, '\n'); break;
+  }
+  if (changed) afterStateEdit(true); else { render(); syncInputFromState(); }
+});
+
+input.addEventListener('paste', (e) => {
+  if (state.composing) return;
+  const pasted = e.clipboardData?.getData('text/plain');
+  if (typeof pasted !== 'string' || pasted.length === 0) return;
+  e.preventDefault(); syncStateFromInput(); replaceRangeInState(state.selectionStart, state.selectionEnd, pasted); afterStateEdit(true);
+});
+
+input.addEventListener('cut', () => requestAnimationFrame(() => syncFromNativeInput(true)));
+input.addEventListener('compositionstart', () => { state.composing = true; requestAnimationFrame(() => { syncStateFromInput(); render(); scrollToCursor(); }); });
+input.addEventListener('compositionupdate', () => { requestAnimationFrame(() => { syncStateFromInput(); render(); scrollToCursor(); }); });
+input.addEventListener('compositionend', () => { state.composing = false; requestAnimationFrame(() => syncFromNativeInput(true)); });
+input.addEventListener('input', () => syncFromNativeInput(!state.composing));
+
+input.addEventListener('keydown', (e) => {
+  const lowerKey = e.key.toLowerCase();
+  const navKeys = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown']);
+  const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+  const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
+
+  if (cmdOrCtrl && !e.altKey && lowerKey === 'a') {
+    e.preventDefault(); setLogicalSelection(0, state.chars.length, { renderView: true, syncInput: true, scroll: true }); return;
+  }
+  if (cmdOrCtrl && !e.altKey && (lowerKey === 'z' || lowerKey === 'y')) { e.preventDefault(); return; }
+
+  if (navKeys.has(e.key)) requestAnimationFrame(() => { syncStateFromInput(); render(); scrollToCursor(); });
+
+  if (supportsBeforeInput || state.composing) return;
+
+  let changed = false;
+  if (e.key === 'Backspace') { e.preventDefault(); syncStateFromInput(); changed = deleteBackwardInState(); } 
+  else if (e.key === 'Delete') { e.preventDefault(); syncStateFromInput(); changed = deleteForwardInState(); } 
+  else if (e.key === 'Enter') { e.preventDefault(); syncStateFromInput(); changed = replaceRangeInState(state.selectionStart, state.selectionEnd, '\n'); }
+
+  if (changed) afterStateEdit(true);
+});
+
+input.addEventListener('keyup', (e) => {
+  const keys = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown', 'Shift']);
+  if (keys.has(e.key)) scheduleSelectionSync(true);
+});
+
+function scrollToCursor() {
+  requestAnimationFrame(() => {
+    let el = document.querySelector('.cursor-cell, .composing-cell, .selection-focus-cell');
+    if (!el) { const selected = document.querySelectorAll('.selected-cell'); if (selected.length) el = selected[selected.length - 1]; }
+    if (!el) return;
+
+    const containerRect = scroller.getBoundingClientRect();
+    const rect = el.getBoundingClientRect();
+    const topLimit = containerRect.top + 90, bottomLimit = containerRect.bottom - 70;
+
+    if (rect.top < topLimit) scroller.scrollBy({ top: rect.top - topLimit, behavior: 'smooth' });
+    else if (rect.bottom > bottomLimit) scroller.scrollBy({ top: rect.bottom - bottomLimit, behavior: 'smooth' });
+  });
+}
+
+/* ===== ZOOM ===== */
+/* 오른쪽 메뉴의 폭(CSS 의 --side-w 와 같다)과, 메뉴를 접는 화면 폭. */
+const SIDE_W = 268, COMPACT_BELOW = 900;
+const isCompact = () => window.innerWidth < COMPACT_BELOW;
+/* 넓은 화면에서 메뉴를 접었는가. 접어 두면 다음에 열 때도 접힌 채다. */
+const SIDE_KEY = 'wongoji-side';
+const sideClosed = () => document.body.classList.contains('side-closed');
+// 메뉴가 차지하는 폭이 달라지면 원고지의 크기와 가운데 자리를 다시 맞춘다.
+function refit() {
+  if (zoomState.mode === 'width' || zoomState.mode === 'height') setZoom(zoomState.mode);
+  else applyZoom();
+}
+function toggleSide() {
+  document.body.classList.toggle('side-closed');
+  try { localStorage.setItem(SIDE_KEY, sideClosed() ? 'closed' : 'open'); } catch (e) { /* 기억하지 못해도 접고 펴는 것은 된다 */ }
+  refit();
+}
+
+// 원고지가 쓸 수 있는 폭과 높이. 넓은 화면에서는 오른쪽 메뉴만큼 뺀다.
+function getVP() {
+  const vp = window.visualViewport;
+  const w = Math.round(vp ? vp.width : window.innerWidth), h = Math.round(vp ? vp.height : window.innerHeight);
+  return { w: isCompact() || sideClosed() ? w : w - SIDE_W, h };
+}
+
+function initMobileZoom() {
+  const { w, h } = getVP();
+  if (w <= h) setZoom('width');
+  else { zoomState = { mode: 'custom', scale: Math.min(2.0, Math.max(0.25, (w * 0.6) / 794)) }; applyZoom(); }
+}
+
+function setZoom(action) {
+  const { w, h } = getVP();
+  const PAGE_W = 794 + 80, PAGE_H = 1123 + 120;
+
+  // 확대 한도를 3.0(300%)에서 10.0(1000%)으로 수정
+  if      (action === 'in')     { zoomState.mode = 'custom'; zoomState.scale = Math.min(10.0, zoomState.scale + 0.1); }
+  else if (action === 'out')    { zoomState.mode = 'custom'; zoomState.scale = Math.max(0.25, zoomState.scale - 0.1); }
+  else if (action === 'width')  { zoomState.mode = 'width';  zoomState.scale = w / PAGE_W; }
+  else if (action === 'height') { zoomState.mode = 'height'; zoomState.scale = (h - 80) / PAGE_H; }
+  applyZoom();
+}
+
+function applyZoom(isPinching = false) {
+  const wrapper = document.getElementById('zoomWrapper');
+  wrapper.style.transform = `scale(${zoomState.scale})`;
+  
+  // 기존 span 대신 input의 value를 업데이트 (포커스 중이 아닐 때만)
+  const zoomInput = document.getElementById('zoomInput');
+  if (zoomInput && document.activeElement !== zoomInput) {
+    zoomInput.value = Math.round(zoomState.scale * 100) + '%';
+  }
+
+  if (isPinching) return; // 핀치 줌 애니메이션 도중에는 레이아웃 재계산 생략
+
+  const container = document.getElementById('pageContainer');
+  const baseWidth = 794; 
+  const scaledWidth = baseWidth * zoomState.scale;
+  
+  // [버그 수정됨] 
+  // 브라우저는 transform: scale()된 요소의 시각적 영역을 스크롤 범위에 자동으로 포함시킵니다.
+  // 여백(margin)을 강제로 더 추가하면 스크롤 영역이 2배로 확장되므로 여백을 제거합니다.
+  wrapper.style.marginRight = '0px'; 
+  wrapper.style.marginBottom = '60px'; // 하단은 기본 패딩값만 유지
+  
+  if (scaledWidth < container.clientWidth) {
+    wrapper.style.marginLeft = `${(container.clientWidth - scaledWidth) / 2}px`;
+  } else {
+    wrapper.style.marginLeft = '10px'; // 확대되었을 때 좌측 불필요한 여백 최소화
+  }
+}
+
+window.addEventListener('resize', () => {
+  if (zoomState.mode === 'width' || zoomState.mode === 'height') setZoom(zoomState.mode);
+  updateToolbarMode();
+});
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', () => {
+    if (zoomState.mode === 'width' || zoomState.mode === 'height') setZoom(zoomState.mode);
+  });
+}
+
+/* ===== 메뉴 모양 고르기 =====
+   화면이 좁으면 메뉴를 접고(위 줄 + ☰), 넓으면 오른쪽에 늘 편다. */
+function updateToolbarMode() {
+  const compact = isCompact();
+  document.body.classList.toggle('compact', compact);
+  document.getElementById('toolbar').classList.toggle('compact', compact);
+  if (!compact) document.getElementById('toolbarMenu').classList.remove('open');
+}
+
+function toggleMenu() {
+  const toolbar = document.getElementById('toolbar');
+  if (!toolbar.classList.contains('compact')) return;
+  document.getElementById('toolbarMenu').classList.toggle('open');
+}
+
+function closeMenuOnCompact() {
+  const toolbar = document.getElementById('toolbar');
+  if (toolbar.classList.contains('compact')) document.getElementById('toolbarMenu').classList.remove('open');
+}
+
+/* ===== 액션 ===== */
+/* ===== PDF 변환 ===== */
+function doPDF() {
+  if (!readyToSave()) return;
+  closeMenuOnCompact();
+  showToast('PDF 변환 중입니다. 잠시만 기다려주세요...');
+
+  const wrapper = document.getElementById('zoomWrapper');
+  
+  // 1. 선명한 PDF 캡처를 위해 줌 배율 100% 초기화 및 페이지 간 여백(gap) 임시 제거
+  const originalScale = zoomState.scale;
+  const originalMode = zoomState.mode;
+  const originalGap = wrapper.style.gap;
+  
+  zoomState.mode = 'custom';
+  zoomState.scale = 1.0;
+  wrapper.style.gap = '0px';
+  applyZoom();
+  // applyZoom 이 가운데 맞춤으로 넣은 왼쪽 여백과 아래 여백을 없앤다.
+  // 남겨 두면 PDF 에서 원고지 왼쪽이 잘리고, 끝에 빈 쪽이 하나 더 생긴다.
+  wrapper.style.marginLeft = '0px';
+  wrapper.style.marginBottom = '0px';
+  // 커서 · 선택 표시와 종이 그림자는 PDF 에 넣지 않는다.
+  document.body.classList.add('exporting');
+
+  // 2. html2pdf 옵션 설정
+  const opt = {
+    margin: 0,
+    filename: fileName('pdf'),
+    image: { type: 'jpeg', quality: 1.0 },
+    html2canvas: {
+      scale: 2,           // 고해상도 캡처
+      useCORS: true,
+      scrollX: 0,
+      scrollY: 0,
+      // 캡처할 때의 창 폭은 지금 창 폭 그대로 둔다. 다르게 주면(예전의 850) 캡처 자리가 어긋나 원고지 왼쪽이 잘린다.
+      windowWidth: document.documentElement.clientWidth
+    },
+    jsPDF: { 
+      unit: 'px', 
+      format: [794, 1123], // 원고지 1장 픽셀 크기에 정확히 맞춤 (높이가 넘어가면 자동으로 다음 페이지로 분할됨)
+      orientation: 'portrait' 
+    }
+  };
+
+  // 3. 변환 및 다운로드
+  html2pdf().set(opt).from(wrapper).save().then(() => {
+    // 4. 완료 후 원래 배율 및 여백 상태로 복구
+    zoomState.scale = originalScale;
+    zoomState.mode = originalMode;
+    wrapper.style.gap = originalGap || '40px';
+    document.body.classList.remove('exporting');
+    applyZoom();
+    showToast('PDF를 저장했습니다.');
+  }).catch(err => {
+    console.error('PDF 변환 오류:', err);
+    showToast('PDF 변환 중 오류가 발생했습니다.');
+    
+    // 에러 시에도 원상 복구
+    zoomState.scale = originalScale;
+    zoomState.mode = originalMode;
+    wrapper.style.gap = originalGap || '40px';
+    document.body.classList.remove('exporting');
+    applyZoom();
+  });
+}
+  
+function newDocument() {
+  if (confirm('모든 내용이 지워집니다. 새로 시작할까요?')) {
+    state.chars = []; state.cursorPos = 0; state.selectionStart = 0; state.selectionEnd = 0; state.composing = false;
+    historyStack = []; historyIndex = -1; saveHistory(true); 
+    
+    // 새 문서 시작 시 경고창 숨기기
+    const warningEl = document.getElementById('truncateWarning');
+    if (warningEl) {
+      warningEl.style.display = 'none';
+      document.getElementById('pageContainer').style.top = 'var(--toolbar-height)';
+    }
+
+    render(); saveToURL(); syncInputFromState(); focusInput(); closeMenuOnCompact();
+  }
+}
+
+function changeFont(v) { state.font = v; document.documentElement.style.setProperty('--font-family', v); render(); saveToURL(); }
+function changeColor(btn) {
+  document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active');
+  state.color = btn.dataset.color; document.documentElement.style.setProperty('--grid-color', state.color); saveToURL();
+}
+/* ===== 이름과 파일로 저장 =====
+   이름은 이 브라우저에 기억해 두고, 저장하는 파일 이름에 넣는다(선생님이 누구의 글인지 알 수 있게). */
+const NAME_KEY = 'wongoji-name';
+function loadName() { try { return localStorage.getItem(NAME_KEY) || ''; } catch (e) { return ''; } }
+function saveName(v) { try { localStorage.setItem(NAME_KEY, v.trim()); } catch (e) { /* 기억하지 못해도 저장은 된다 */ } }
+// 파일 이름에 쓸 수 없는 글자는 뺀다.
+function fileName(ext) {
+  const name = document.getElementById('nameInput').value.trim().replace(/[\\/:*?"<>|]/g, '');
+  return (name ? '원고지_' + name : '원고지') + '.' + ext;
+}
+// 이름을 적지 않았으면 이름 칸으로 데려간다. 저장해도 되면 true.
+function readyToSave() {
+  if (state.chars.length === 0) { showToast('아직 쓴 글이 없습니다.'); return false; }
+  const el = document.getElementById('nameInput');
+  if (el.value.trim()) return true;
+  showToast('이름을 먼저 적어 주세요.');
+  // 메뉴가 접혀 있으면 펴서 이름 칸을 보인다.
+  if (isCompact()) document.getElementById('toolbarMenu').classList.add('open');
+  else if (sideClosed()) toggleSide();
+  el.focus();
+  return false;
+}
+/* ===== 제목과 이름을 원고지 맨 위에 넣기 =====
+   글이 곧 원고지라서, 줄을 맞추는 일도 빈칸과 줄바꿈을 넣는 것으로 한다(넣은 뒤에 손으로 고칠 수 있다).
+   놓는 자리는 학교에서 흔히 가르치는 관례다(정해진 공식 규정은 없다):
+     첫째 줄 비움 · 둘째 줄 가운데에 제목 · 셋째 줄 비움(소속 자리) · 넷째 줄 오른쪽에 이름(끝의 두 칸은 비움) · 다섯째 줄 비움 · 여섯째 줄부터 본문. */
+const NAME_TAIL = 2;
+// 글이 원고지에서 차지하는 칸 수. 영문 소문자 · 숫자는 두 글자가 한 칸, 마침표 · 쉼표 뒤의 따옴표는 같은 칸이다(buildLayout 과 같은 셈).
+function cellWidth(str) {
+  let w = 0;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i], next = str[i + 1];
+    if (next && ((/[a-z0-9]/.test(ch) && /[a-z0-9]/.test(next)) || ((ch === '.' || ch === ',') && /['"”’]/.test(next)))) i++;
+    w++;
+  }
+  return w;
+}
+// 맨 위의 제목 · 이름 줄(이 앱이 넣은 꼴). 다시 넣을 때 앞의 것을 갈아 끼우고, 글을 열 때 칸을 채우는 데 쓴다.
+const HEADER_RE = /^\n *([^\n]*[^\n ])\n\n +([^\n]*[^\n ])\n\n/;
+function headerOf(title, name) {
+  const pad = (n) => ' '.repeat(Math.max(0, n));
+  return '\n' + pad(Math.floor((COLS - cellWidth(title)) / 2)) + title + '\n\n' + pad(COLS - NAME_TAIL - cellWidth(name)) + name + '\n\n';
+}
+function applyHeader() {
+  const title = document.getElementById('titleInput').value.trim(), name = document.getElementById('nameInput').value.trim();
+  if (!title || !name) {
+    showToast(!title ? '제목을 먼저 적어 주세요.' : '이름을 먼저 적어 주세요.');
+    document.getElementById(!title ? 'titleInput' : 'nameInput').focus();
+    return;
+  }
+  const header = headerOf(title, name);
+  // 이미 넣은 제목 · 이름 줄이 있으면 갈아 끼운다.
+  const body = state.chars.join('').replace(HEADER_RE, '');
+  state.chars = (header + body).split('');
+  setLogicalSelection(header.length, header.length);
+  afterStateEdit(true);
+  showToast('제목과 이름을 넣었습니다.'); closeMenuOnCompact(); focusInput();
+}
+// 글 맨 위에 제목 · 이름 줄이 있으면 빈 칸을 그것으로 채운다(쓰던 글을 다시 열었을 때).
+function fillHeaderFields() {
+  const m = state.chars.join('').match(HEADER_RE);
+  if (!m) return;
+  const titleEl = document.getElementById('titleInput'), nameEl = document.getElementById('nameInput');
+  if (!titleEl.value) titleEl.value = m[1];
+  if (!nameEl.value) nameEl.value = m[2];
+}
+
+/* ===== 글 파일 열기 =====
+   「글 저장」으로 만든 텍스트 파일(.txt)을 다시 연다. 선생님이 받은 글을 원고지로 볼 때도 쓴다. */
+function openText(picker) {
+  const file = picker.files && picker.files[0];
+  picker.value = ''; // 같은 파일을 다시 골라도 열리게 한다.
+  if (!file) return;
+  if (state.chars.length > 0 && !confirm('지금 쓰던 글이 열려는 글로 바뀝니다. 열까요?')) return;
+  file.text().then((text) => {
+    state.chars = normalizeText(text).split('');
+    setLogicalSelection(0, 0);
+    // 연 글의 제목 · 이름으로 칸을 다시 채운다.
+    document.getElementById('titleInput').value = '';
+    document.getElementById('nameInput').value = '';
+    fillHeaderFields();
+    saveName(document.getElementById('nameInput').value);
+    afterStateEdit(true);
+    scroller.scrollTo({ top: 0 });
+    showToast('글을 열었습니다.'); closeMenuOnCompact();
+  }).catch(() => showToast('글 파일을 열지 못했습니다.'));
+}
+
+// 글만 든 텍스트 파일로 저장한다.
+function saveText() {
+  if (!readyToSave()) return;
+  const blob = new Blob([state.chars.join('')], { type: 'text/plain;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = fileName('txt');
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  showToast('글 파일을 저장했습니다.'); closeMenuOnCompact();
+}
+
+function doPrint() { closeMenuOnCompact(); setTimeout(() => window.print(), 100); }
+function copyText() {
+  const text = hasSelection() ? getSelectedText() : state.chars.join('');
+  navigator.clipboard.writeText(text).then(() => showToast(hasSelection() ? '선택한 텍스트가 복사되었습니다.' : '텍스트가 복사되었습니다.'));
+  closeMenuOnCompact();
+}
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+  /* ===== PC 드래그 패닝 & 모바일 핀치 줌 ===== */
+const pageContainerEl = document.getElementById('pageContainer');
+
+// [1] PC 마우스 드래그로 화면 상하좌우 이동 기능
+let isPanning = false;
+let startPanX = 0, startPanY = 0;
+let startScrollLeft = 0, startScrollTop = 0;
+
+pageContainerEl.addEventListener('mousedown', (e) => {
+  // 툴바 클릭이거나, 왼쪽 마우스 버튼이 아니면 무시
+  if (e.button !== 0 || e.target.closest('.toolbar') || e.target.tagName === 'BUTTON') return;
+  isPanning = true;
+  startPanX = e.clientX;
+  startPanY = e.clientY;
+  startScrollLeft = pageContainerEl.scrollLeft;
+  startScrollTop = pageContainerEl.scrollTop;
+  pageContainerEl.style.cursor = 'grabbing';
+});
+
+window.addEventListener('mousemove', (e) => {
+  if (!isPanning) return;
+  e.preventDefault(); // 텍스트 선택 등 방지
+  pageContainerEl.scrollLeft = startScrollLeft - (e.clientX - startPanX);
+  pageContainerEl.scrollTop = startScrollTop - (e.clientY - startPanY);
+});
+
+window.addEventListener('mouseup', () => {
+  if (isPanning) {
+    isPanning = false;
+    pageContainerEl.style.cursor = '';
+  }
+});
+
+// [2] 모바일 두 손가락 핀치 줌 기능 (손가락 중심점 추적 및 1000% 상향 적용)
+let initialPinchDistance = null;
+let initialZoomScale = 1;
+let pinchCenter = { x: 0, y: 0 };
+let initialScroll = { left: 0, top: 0 };
+
+pageContainerEl.addEventListener('touchstart', (e) => {
+  if (e.touches.length === 2) {
+    initialPinchDistance = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY
+    );
+    initialZoomScale = zoomState.scale;
+
+    pinchCenter = {
+      x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+      y: (e.touches[0].clientY + e.touches[1].clientY) / 2
+    };
+    
+    initialScroll = {
+      left: pageContainerEl.scrollLeft,
+      top: pageContainerEl.scrollTop
+    };
+
+    document.getElementById('zoomWrapper').style.transition = 'none';
+  }
+}, { passive: true });
+
+pageContainerEl.addEventListener('touchmove', (e) => {
+  if (e.touches.length === 2 && initialPinchDistance) {
+    e.preventDefault(); // 브라우저 기본 튕김 방지
+    
+    const currentDistance = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY
+    );
+    const ratio = currentDistance / initialPinchDistance;
+    let newScale = initialZoomScale * ratio;
+    
+    // 확대/축소 제한 범위 (기존 3.0에서 10.0으로 1000% 상향)
+    newScale = Math.min(10.0, Math.max(0.25, newScale));
+    zoomState.mode = 'custom';
+    zoomState.scale = newScale;
+    
+    // true 파라미터를 넘겨 줌 도중의 지지직거림 방지
+    applyZoom(true);
+
+    // 스크롤 보정
+    const scaleRatio = newScale / initialZoomScale;
+    const rect = pageContainerEl.getBoundingClientRect();
+    const relativeCx = pinchCenter.x - rect.left;
+    const relativeCy = pinchCenter.y - rect.top;
+
+    pageContainerEl.scrollLeft = (initialScroll.left + relativeCx) * scaleRatio - relativeCx;
+    pageContainerEl.scrollTop = (initialScroll.top + relativeCy) * scaleRatio - relativeCy;
+  }
+}, { passive: false });
+
+pageContainerEl.addEventListener('touchend', (e) => {
+  if (e.touches.length < 2 && initialPinchDistance) {
+    initialPinchDistance = null;
+    document.getElementById('zoomWrapper').style.transition = 'transform 0.1s ease-out';
+    applyZoom(false); // 줌이 끝나면 여백(Margin) 최종 정렬 계산
+  }
+});
+  
+// 사용자가 확대/축소 비율을 직접 입력했을 때 처리하는 함수
+function handleManualZoom(val) {
+  let num = parseInt(val.replace('%', ''), 10);
+  
+  // 숫자가 아닌 값을 입력했을 경우 원래 비율로 복구
+  if (isNaN(num)) {
+    document.getElementById('zoomInput').value = Math.round(zoomState.scale * 100) + '%';
+    return;
+  }
+  
+  // 최소 25%, 최대 1000%로 범위 제한
+  num = Math.max(25, Math.min(1000, num));
+  
+  zoomState.mode = 'custom';
+  zoomState.scale = num / 100;
+  applyZoom();
+  
+  // 입력 완료 후 포커스 해제
+  document.getElementById('zoomInput').blur(); 
+}
+  
+/* ===== 초기화 ===== */
+document.addEventListener('DOMContentLoaded', () => {
+  try { if (localStorage.getItem(SIDE_KEY) === 'closed') document.body.classList.add('side-closed'); } catch (e) { /* 처음 모습 그대로 */ }
+  updateToolbarMode();
+  document.getElementById('nameInput').value = loadName();
+  loadFromURL(); applySettings(); render(); syncInputFromState();
+  fillHeaderFields();
+  saveHistory(true);
+  if (restoredDraft) { saveToURL(); showToast('쓰던 글을 불러왔습니다.'); }
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      initMobileZoom(); updateToolbarMode();
+    });
+  });
+});
+</script>
+</body>
+</html>
